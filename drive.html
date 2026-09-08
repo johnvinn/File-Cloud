@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNITEC Drive</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --bg-color: #f8f9fa;
+            --sidebar-bg: #ffffff;
+            --text-color: #3c4043;
+            --border-color: #dadce0;
+            --hover-bg: #f1f3f4;
+            --active-bg: #e8f0fe;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-color); }
+
+        /* Sidebar */
+        aside {
+            width: 240px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            user-select: none;
+        }
+
+        .brand { font-size: 20px; font-weight: 600; color: var(--primary-color); display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+
+        .btn-new {
+            display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-radius: 24px; border: none;
+            background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.2s;
+        }
+        .btn-new:hover { box-shadow: 0 4px 6px rgba(0,0,0,0.15); background-color: var(--hover-bg); }
+
+        .nav-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-radius: 0 20px 20px 0;
+            cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text-color); transition: 0.2s;
+        }
+        .nav-item:hover { background-color: var(--hover-bg); }
+        .nav-item.active { background-color: var(--active-bg); color: var(--primary-color); }
+
+        .sync-box {
+            background: #f1f3f4; border-radius: 8px; padding: 12px; font-size: 12px; display: flex;
+            flex-direction: column; gap: 8px; margin-top: auto; border: 1px solid var(--border-color);
+        }
+        .sync-btn {
+            background: var(--primary-color); color: #fff; border: none; border-radius: 4px; padding: 8px;
+            font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+
+        /* Main Workspace */
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        header {
+            height: 64px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px; background: #fff; border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-container { position: relative; width: 50%; max-width: 720px; }
+        .search-container i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #5f6368; }
+        .search-container input {
+            width: 100%; padding: 11px 16px 11px 48px; background: var(--hover-bg); border: none;
+            border-radius: 8px; font-size: 15px; outline: none;
+        }
+        .search-container input:focus { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; }
+        .drop-overlay {
+            display: none; position: absolute; inset: 0; background: rgba(26, 115, 232, 0.1);
+            border: 3px dashed var(--primary-color); z-index: 100; pointer-events: none;
+            align-items: center; justify-content: center; font-size: 24px; color: var(--primary-color); font-weight: 600;
+        }
+        .drop-overlay.active { display: flex; }
+
+        .breadcrumb { font-size: 18px; font-weight: 500; margin-bottom: 20px; color: #202124; display: flex; align-items: center; gap: 8px; }
+        .breadcrumb span { cursor: pointer; }
+        .breadcrumb span:hover { text-decoration: underline; }
+
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+        .list-view { display: flex; flex-direction: column; gap: 8px; }
+
+        .item-card {
+            background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px;
+            display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative;
+            transition: border-color 0.2s, box-shadow 0.2s; user-select: none;
+        }
+        .item-card:hover { border-color: #b0b0b0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .item-card.selected { background-color: var(--active-bg); border-color: var(--primary-color); }
+        .item-card.drag-over { border: 2px dashed var(--primary-color); background: var(--hover-bg); }
+
+        .item-icon { font-size: 22px; }
+        .item-icon.folder { color: #5f6368; }
+        .item-icon.file { color: var(--primary-color); }
+        .item-details { flex: 1; overflow: hidden; }
+        .item-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-meta { font-size: 12px; color: #70757a; margin-top: 2px; }
+
+        .item-actions { display: none; gap: 6px; position: absolute; right: 10px; background: #fff; padding: 2px; border-radius: 4px; }
+        .item-card:hover .item-actions { display: flex; }
+        .action-btn { background: none; border: none; font-size: 14px; color: #5f6368; padding: 6px; cursor: pointer; border-radius: 50%; }
+        .action-btn:hover { background: var(--hover-bg); color: #000; }
+        .star-active { color: #f4b400 !important; }
+
+        #file-input { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside>
+        <div class="brand">
+            <i class="fa-solid fa-hard-drive"></i>
+            <span>UNITEC Drive</span>
+        </div>
+
+        <button class="btn-new" onclick="showNewMenu()">
+            <i class="fa-solid fa-plus" style="font-size: 20px; color: #ea4335;"></i>
+            <span>New</span>
+        </button>
+
+        <ul class="nav-list">
+            <li class="nav-item active" onclick="switchView('my-drive', this)"><i class="fa-solid fa-folder-closed"></i> My Drive</li>
+            <li class="nav-item" onclick="switchView('shared', this)"><i class="fa-solid fa-user-group"></i> Shared with me</li>
+            <li class="nav-item" onclick="switchView('recent', this)"><i class="fa-solid fa-clock"></i> Recent</li>
+            <li class="nav-item" onclick="switchView('starred', this)"><i class="fa-solid fa-star"></i> Starred</li>
+            <li class="nav-item" onclick="switchView('trash', this)"><i class="fa-solid fa-trash-can"></i> Trash</li>
+        </ul>
+
+        <!-- Real Google Drive Sync Container -->
+        <div class="sync-box">
+            <div style="font-weight: 600;"><i class="fa-brands fa-google-drive"></i> Google Cloud Sync</div>
+            <div id="sync-status" style="color: #5f6368;">Not connected</div>
+            <button class="sync-btn" onclick="handleAuthClick()"><i class="fa-solid fa-arrows-rotate"></i> Sync Account</button>
+        </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main id="drop-zone">
+        <div class="drop-overlay" id="drop-overlay"><i class="fa-solid fa-cloud-arrow-up"></i>&nbsp; Drop files to upload to UNITEC Drive</div>
+
+        <header>
+            <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="search-input" placeholder="Search in Drive..." oninput="renderItems()">
+            </div>
+            <div>
+                <button class="action-btn" title="Toggle Layout" onclick="toggleLayout()"><i class="fa-solid fa-list-ul" id="layout-icon"></i></button>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <div class="breadcrumb" id="breadcrumb">
+                <span onclick="navigateTo('root')">My Drive</span>
+            </div>
+            <div class="grid-view" id="items-container"></div>
+        </div>
+    </main>
+
+    <input type="file" id="file-input" multiple onchange="handleFileUpload(event)">
+
+    <script>
+        // State
+        let currentFolderId = 'root';
+        let currentView = 'my-drive';
+        let isGridView = true;
+        let selectedItemId = null;
+        let clipboardItem = null; // Copy-and-Paste Storage
+        let draggedItemId = null; // Drag-and-Drop Storage
+
+        // Database (LocalStorage persistence)
+        let driveData = JSON.parse(localStorage.getItem('unitec_drive_v2')) || [
+            { id: 'f1', name: 'Work Documents', type: 'folder', parentId: 'root', starred: false, trashed: false, shared: false, timestamp: Date.now() },
+            { id: 'f2', name: 'Shared Photos', type: 'folder', parentId: 'root', starred: true, trashed: false, shared: true, timestamp: Date.now() },
+            { id: 'doc1', name: 'Notes.txt', type: 'file', parentId: 'f1', size: '2 KB', starred: false, trashed: false, shared: false, timestamp: Date.now(), content: 'Sample text document.' }
+        ];
+
+        function saveData() {
+            localStorage.setItem('unitec_drive_v2', JSON.stringify(driveData));
+        }
+
+        // --- 1. SIDEBAR FUNCTIONALITY ---
+        function switchView(viewName, el) {
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            if(el) el.classList.add('active');
+            
+            currentView = viewName;
+            currentFolderId = 'root';
+            
+            const titles = {
+                'my-drive': 'My Drive',
+                'shared': 'Shared with me',
+                'recent': 'Recent Files',
+                'starred': 'Starred Files',
+                'trash': 'Trash Bin'
+            };
+            
+            document.getElementById('breadcrumb').innerHTML = `<span>${titles[viewName]}</span>`;
+            renderItems();
+        }
+
+        // --- 2. RENDER DRIVE CONTENT ---
+        function renderItems() {
+            const container = document.getElementById('items-container');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            container.innerHTML = '';
+
+            let filtered = driveData.filter(item => {
+                if (searchKeyword) return item.name.toLowerCase().includes(searchKeyword);
+
+                if (currentView === 'trash') return item.trashed;
+                if (item.trashed) return false; // Hide trashed items in other views
+
+                if (currentView === 'my-drive') return item.parentId === currentFolderId && !item.shared;
+                if (currentView === 'shared') return item.shared;
+                if (currentView === 'starred') return item.starred;
+                if (currentView === 'recent') return true;
+                return true;
+            });
+
+            if (currentView === 'recent') {
+                filtered = filtered.sort((a,b) => b.timestamp - a.timestamp).slice(0, 10);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p style="color: #70757a; grid-column: 1/-1;">No items found in ${currentView}.</p>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `item-card ${selectedItemId === item.id ? 'selected' : ''}`;
+                card.draggable = true;
+                card.dataset.id = item.id;
+
+                const icon = item.type === 'folder' 
+                    ? '<i class="fa-solid fa-folder item-icon folder"></i>' 
+                    : '<i class="fa-solid fa-file-lines item-icon file"></i>';
+
+                card.innerHTML = `
+                    ${icon}
+                    <div class="item-details">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-meta">${item.type === 'folder' ? 'Folder' : (item.size || 'File')}</div>
+                    </div>
+                    <div class="item-actions">
+                        ${!item.trashed ? `<button class="action-btn ${item.starred ? 'star-active' : ''}" onclick="toggleStar(event, '${item.id}')"><i class="fa-solid fa-star"></i></button>` : ''}
+                        ${item.trashed 
+                            ? `<button class="action-btn" title="Restore" onclick="restoreItem(event, '${item.id}')"><i class="fa-solid fa-rotate-left"></i></button>`
+                            : `<button class="action-btn" title="Move to Trash" onclick="trashContainer(event, '${item.id}')"><i class="fa-solid fa-trash"></i></button>`
+                        }
+                    </div>
+                `;
+
+                // Item Click & Selection Events
+                card.onclick = (e) => {
+                    e.stopPropagation();
+                    selectedItemId = item.id;
+                    renderItems();
+                };
+
+                card.ondblclick = () => {
+                    if (item.type === 'folder' && !item.trashed) navigateTo(item.id, item.name);
+                    else if(item.content) alert(`Content of ${item.name}:\n\n${item.content}`);
+                };
+
+                // --- 3. DRAG AND DROP (Internal Items) ---
+                card.ondragstart = (e) => {
+                    draggedItemId = item.id;
+                    e.dataTransfer.setData('text/plain', item.id);
+                };
+
+                if (item.type === 'folder') {
+                    card.ondragover = (e) => { e.preventDefault(); card.classList.add('drag-over'); };
+                    card.ondragleave = () => card.classList.remove('drag-over');
+                    card.ondrop = (e) => {
+                        e.preventDefault();
+                        card.classList.remove('drag-over');
+                        const targetId = e.dataTransfer.getData('text/plain');
+                        if (targetId && targetId !== item.id) {
+                            moveItemToFolder(targetId, item.id);
+                        }
+                    };
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        // --- 4. DRAG AND DROP (External Desktop Files) ---
+        const dropZone = document.getElementById('drop-zone');
+        const dropOverlay = document.getElementById('drop-overlay');
+
+        window.ondragover = (e) => { e.preventDefault(); dropOverlay.classList.add('active'); };
+        dropOverlay.ondragleave = () => dropOverlay.classList.remove('active');
+        window.ondrop = (e) => {
+            e.preventDefault();
+            dropOverlay.classList.remove('active');
+            if (e.dataTransfer.files.length > 0) {
+                handleExternalFiles(e.dataTransfer.files);
+            }
+        };
+
+        function handleExternalFiles(files) {
+            Array.from(files).forEach(file => {
+                driveData.push({
+                    id: 'file_' + Date.now() + Math.random().toString(36).substr(2,4),
+                    name: file.name,
+                    type: 'file',
+                    parentId: currentFolderId,
+                    size: (file.size / 1024).toFixed(1) + ' KB',
+                    starred: false, trashed: false, shared: false, timestamp: Date.now()
+                });
+            });
+            saveData();
+            renderItems();
+        }
+
+        function moveItemToFolder(itemId, targetFolderId) {
+            const item = driveData.find(i => i.id === itemId);
+            if (item) {
+                item.parentId = targetFolderId;
+                saveData();
+                renderItems();
+            }
+        }
+
+        // --- 5. COPY AND PASTE FEATURE ---
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+                if (selectedItemId) {
+                    const item = driveData.find(i => i.id === selectedItemId);
+                    if (item) {
+                        clipboardItem = item;
+                        alert(`Copied "${item.name}" to clipboard.`);
+                    }
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+                if (clipboardItem) {
+                    const newItem = JSON.parse(JSON.stringify(clipboardItem));
+                    newItem.id = 'copy_' + Date.now();
+                    newItem.name = 'Copy of ' + newItem.name;
+                    newItem.parentId = currentFolderId;
+                    newItem.timestamp = Date.now();
+                    driveData.push(newItem);
+                    saveData();
+                    renderItems();
+                }
+            }
+        });
+
+        // --- 6. DRIVE ACTIONS & HELPERS ---
+        function navigateTo(folderId, folderName) {
+            currentFolderId = folderId;
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (folderId === 'root') {
+                breadcrumb.innerHTML = `<span onclick="navigateTo('root')">My Drive</span>`;
+            } else {
+                breadcrumb.innerHTML = `<span onclick="navigateTo('root')">My Drive</span> / <span>${folderName}</span>`;
+            }
+            renderItems();
+        }
+
+        function toggleStar(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.starred = !item.starred; saveData(); renderItems(); }
+        }
+
+        function trashContainer(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.trashed = true; saveData(); renderItems(); }
+        }
+
+        function restoreItem(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.trashed = false; saveData(); renderItems(); }
+        }
+
+        function showNewMenu() {
+            const choice = prompt("Actions:\n1 - Create Folder\n2 - Upload Files\n3 - Create Text File", "1");
+            if (choice === "1") {
+                const name = prompt("Folder name:", "New Folder");
+                if (name) {
+                    driveData.push({ id: 'f_' + Date.now(), name, type: 'folder', parentId: currentFolderId, starred: false, trashed: false, shared: false, timestamp: Date.now() });
+                    saveData(); renderItems();
+                }
+            } else if (choice === "2") {
+                document.getElementById('file-input').click();
+            } else if (choice === "3") {
+                const name = prompt("File name:", "Doc.txt");
+                if (name) {
+                    driveData.push({ id: 'd_' + Date.now(), name, type: 'file', parentId: currentFolderId, size: '1 KB', starred: false, trashed: false, shared: false, timestamp: Date.now(), content: 'New text document.' });
+                    saveData(); renderItems();
+                }
+            }
+        }
+
+        function handleFileUpload(e) { handleExternalFiles(e.target.files); }
+
+        function toggleLayout() {
+            const container = document.getElementById('items-container');
+            const icon = document.getElementById('layout-icon');
+            isGridView = !isGridView;
+            container.className = isGridView ? 'grid-view' : 'list-view';
+            icon.className = isGridView ? 'fa-solid fa-list-ul' : 'fa-solid fa-border-all';
+        }
+
+        // --- 7. REAL GOOGLE DRIVE CLOUD SYNC ---
+        const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'; // Replace with Google Cloud Console ID
+        const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+        let tokenClient;
+
+        function handleAuthClick() {
+            if (CLIENT_ID.includes('YOUR_GOOGLE_CLIENT_ID')) {
+                alert("Google Sync Demo Mode: Connect your own Client ID to sync live Google Cloud files.\n\nSimulating Google Cloud pull...");
+                
+                // Demo simulated Cloud Sync insertion
+                driveData.push({
+                    id: 'gdrive_' + Date.now(),
+                    name: 'Synced_Google_Cloud_Doc.gdoc',
+                    type: 'file', parentId: 'root', size: '15 KB', starred: true, trashed: false, shared: true, timestamp: Date.now()
+                });
+                saveData();
+                renderItems();
+                document.getElementById('sync-status').innerText = 'Synced just now';
+                return;
+            }
+
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID, scope: SCOPES,
+                callback: async (resp) => {
+                    if (resp.error) return;
+                    document.getElementById('sync-status').innerText = 'Fetching Drive...';
+                    await fetchGoogleDriveFiles(resp.access_token);
+                },
+            });
+            tokenClient.requestAccessToken();
+        }
+
+        async function fetchGoogleDriveFiles(accessToken) {
+            try {
+                const res = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=20&fields=files(id,name,mimeType)', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await res.json();
+                
+                if (data.files) {
+                    data.files.forEach(file => {
+                        const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
+                        if (!driveData.some(d => d.id === file.id)) {
+                            driveData.push({
+                                id: file.id,
+                                name: file.name,
+                                type: isFolder ? 'folder' : 'file',
+                                parentId: 'root',
+                                size: 'Cloud File',
+                                starred: false, trashed: false, shared: true, timestamp: Date.now()
+                            });
+                        }
+                    });
+                    saveData();
+                    renderItems();
+                    document.getElementById('sync-status').innerText = 'Sync complete!';
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('sync-status').innerText = 'Sync failed';
+            }
+        }
+
+        // Initialize UI
+        renderItems();
+        document.onclick = () => { selectedItemId = null; renderItems(); };
+    </script>
+</body>
+</html>
