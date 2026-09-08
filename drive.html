@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNITEC Drive</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --bg-color: #f8f9fa;
+            --sidebar-bg: #ffffff;
+            --text-color: #3c4043;
+            --border-color: #dadce0;
+            --hover-bg: #f1f3f4;
+            --active-bg: #e8f0fe;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { display: flex; height: 100vh; height: 100dvh; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; }
+
+        /* Sidebar Overlay for Mobile */
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 90;
+        }
+        .sidebar-overlay.active { display: block; }
+
+        /* Sidebar */
+        aside {
+            width: 260px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            user-select: none;
+            z-index: 100;
+            transition: transform 0.25s ease;
+        }
+
+        @media (max-width: 768px) {
+            aside {
+                position: fixed; top: 0; bottom: 0; left: 0;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+            }
+            aside.mobile-open { transform: translateX(0); }
+        }
+
+        .brand { font-size: 20px; font-weight: 600; color: var(--primary-color); display: flex; align-items: center; gap: 12px; padding: 8px 4px; }
+
+        .btn-new {
+            display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-radius: 24px; border: none;
+            background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            font-size: 15px; font-weight: 500; cursor: pointer; transition: 0.2s; width: fit-content;
+        }
+        .btn-new:hover { box-shadow: 0 4px 6px rgba(0,0,0,0.15); background-color: var(--hover-bg); }
+
+        .nav-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-radius: 0 24px 24px 0;
+            cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text-color); transition: 0.2s;
+        }
+        .nav-item:hover { background-color: var(--hover-bg); }
+        .nav-item.active { background-color: var(--active-bg); color: var(--primary-color); }
+
+        .sync-box {
+            background: #f1f3f4; border-radius: 12px; padding: 12px; font-size: 12px; display: flex;
+            flex-direction: column; gap: 8px; margin-top: auto; border: 1px solid var(--border-color);
+        }
+        .sync-btn {
+            background: var(--primary-color); color: #fff; border: none; border-radius: 6px; padding: 8px;
+            font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+
+        /* Main Workspace */
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        header {
+            height: 64px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px; background: #fff; border-bottom: 1px solid var(--border-color); gap: 12px;
+        }
+
+        .menu-toggle {
+            display: none; background: none; border: none; font-size: 20px; color: #5f6368; padding: 8px; cursor: pointer;
+        }
+        @media (max-width: 768px) { .menu-toggle { display: block; } }
+
+        .search-container { position: relative; flex: 1; max-width: 720px; }
+        .search-container i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #5f6368; }
+        .search-container input {
+            width: 100%; padding: 10px 16px 10px 42px; background: var(--hover-bg); border: none;
+            border-radius: 8px; font-size: 15px; outline: none;
+        }
+        .search-container input:focus { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+        .content-area { flex: 1; padding: 16px; overflow-y: auto; position: relative; }
+        @media (min-width: 769px) { .content-area { padding: 24px; } }
+
+        .drop-overlay {
+            display: none; position: absolute; inset: 0; background: rgba(26, 115, 232, 0.1);
+            border: 3px dashed var(--primary-color); z-index: 100; pointer-events: none;
+            align-items: center; justify-content: center; font-size: 20px; color: var(--primary-color); font-weight: 600;
+        }
+        .drop-overlay.active { display: flex; }
+
+        .breadcrumb { font-size: 18px; font-weight: 500; margin-bottom: 16px; color: #202124; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .breadcrumb span { cursor: pointer; }
+        .breadcrumb span:hover { text-decoration: underline; }
+
+        /* Grid / List Layouts */
+        .grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        @media (min-width: 600px) { .grid-view { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; } }
+
+        .list-view { display: flex; flex-direction: column; gap: 8px; }
+
+        .item-card {
+            background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;
+            display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative;
+            transition: border-color 0.2s, box-shadow 0.2s; user-select: none;
+        }
+        .item-card:hover { border-color: #b0b0b0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .item-card.selected { background-color: var(--active-bg); border-color: var(--primary-color); }
+        .item-card.drag-over { border: 2px dashed var(--primary-color); background: var(--hover-bg); }
+
+        .item-icon { font-size: 22px; flex-shrink: 0; }
+        .item-icon.folder { color: #5f6368; }
+        .item-icon.file { color: var(--primary-color); }
+        .item-details { flex: 1; min-width: 0; }
+        .item-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item-meta { font-size: 12px; color: #70757a; margin-top: 2px; }
+
+        .item-actions { display: flex; gap: 4px; position: absolute; right: 8px; background: #fff; padding: 2px; border-radius: 4px; }
+        @media (min-width: 769px) { .item-actions { display: none; } .item-card:hover .item-actions { display: flex; } }
+
+        .action-btn { background: none; border: none; font-size: 14px; color: #5f6368; padding: 6px; cursor: pointer; border-radius: 50%; }
+        .action-btn:hover { background: var(--hover-bg); color: #000; }
+        .star-active { color: #f4b400 !important; }
+
+        /* Custom Context Menu (Right Click / Double Click) */
+        .context-menu {
+            display: none; position: fixed; background: #fff; border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; padding: 6px 0; z-index: 200; width: 180px;
+        }
+        .context-menu-item {
+            padding: 10px 16px; font-size: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; color: var(--text-color);
+        }
+        .context-menu-item:hover { background-color: var(--hover-bg); }
+
+        #file-input { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar(false)"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-hard-drive"></i>
+            <span>UNITEC Drive</span>
+        </div>
+
+        <button class="btn-new" onclick="showNewMenu()">
+            <i class="fa-solid fa-plus" style="font-size: 20px; color: #ea4335;"></i>
+            <span>New</span>
+        </button>
+
+        <ul class="nav-list">
+            <li class="nav-item active" onclick="switchView('my-drive', this)"><i class="fa-solid fa-folder-closed"></i> My Drive</li>
+            <li class="nav-item" onclick="switchView('shared', this)"><i class="fa-solid fa-user-group"></i> Shared with me</li>
+            <li class="nav-item" onclick="switchView('recent', this)"><i class="fa-solid fa-clock"></i> Recent</li>
+            <li class="nav-item" onclick="switchView('starred', this)"><i class="fa-solid fa-star"></i> Starred</li>
+            <li class="nav-item" onclick="switchView('trash', this)"><i class="fa-solid fa-trash-can"></i> Trash</li>
+        </ul>
+
+        <div class="sync-box">
+            <div style="font-weight: 600;"><i class="fa-brands fa-google-drive"></i> Cloud Sync</div>
+            <div id="sync-status" style="color: #5f6368;">Not connected</div>
+            <button class="sync-btn" onclick="handleAuthClick()"><i class="fa-solid fa-arrows-rotate"></i> Sync Account</button>
+        </div>
+    </aside>
+
+    <!-- Main Section -->
+    <main id="drop-zone">
+        <div class="drop-overlay" id="drop-overlay"><i class="fa-solid fa-cloud-arrow-up"></i>&nbsp; Drop files to upload</div>
+
+        <header>
+            <button class="menu-toggle" onclick="toggleSidebar(true)"><i class="fa-solid fa-bars"></i></button>
+            <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="search-input" placeholder="Search in Drive..." oninput="renderItems()">
+            </div>
+            <div>
+                <button class="action-btn" title="Toggle Layout" onclick="toggleLayout()"><i class="fa-solid fa-list-ul" id="layout-icon"></i></button>
+            </div>
+        </header>
+
+        <div class="content-area" id="content-area">
+            <div class="breadcrumb" id="breadcrumb">
+                <span onclick="navigateTo('root')">My Drive</span>
+            </div>
+            <div class="grid-view" id="items-container"></div>
+        </div>
+    </main>
+
+    <!-- Custom Context Menu -->
+    <div class="context-menu" id="context-menu">
+        <div class="context-menu-item" onclick="createFolder()"><i class="fa-solid fa-folder-plus"></i> New Folder</div>
+        <div class="context-menu-item" onclick="triggerFileInput()"><i class="fa-solid fa-file-arrow-up"></i> Upload File</div>
+        <div class="context-menu-item" onclick="createTextFile()"><i class="fa-solid fa-file-circle-plus"></i> New Text File</div>
+    </div>
+
+    <input type="file" id="file-input" multiple onchange="handleFileUpload(event)">
+
+    <script>
+        // State
+        let currentFolderId = 'root';
+        let currentView = 'my-drive';
+        let isGridView = true;
+        let selectedItemId = null;
+        let clipboardItem = null;
+        let draggedItemId = null;
+
+        // LocalStorage Database
+        let driveData = JSON.parse(localStorage.getItem('unitec_drive_gh')) || [
+            { id: 'f1', name: 'Work Documents', type: 'folder', parentId: 'root', starred: false, trashed: false, shared: false, timestamp: Date.now() },
+            { id: 'f2', name: 'Shared Photos', type: 'folder', parentId: 'root', starred: true, trashed: false, shared: true, timestamp: Date.now() },
+            { id: 'doc1', name: 'Notes.txt', type: 'file', parentId: 'f1', size: '2 KB', starred: false, trashed: false, shared: false, timestamp: Date.now(), content: 'Sample text document.' }
+        ];
+
+        function saveData() {
+            localStorage.setItem('unitec_drive_gh', JSON.stringify(driveData));
+        }
+
+        // Mobile Sidebar Toggle
+        function toggleSidebar(open) {
+            document.getElementById('sidebar').classList.toggle('mobile-open', open);
+            document.getElementById('sidebar-overlay').classList.toggle('active', open);
+        }
+
+        function switchView(viewName, el) {
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            if(el) el.classList.add('active');
+            
+            currentView = viewName;
+            currentFolderId = 'root';
+            
+            const titles = {
+                'my-drive': 'My Drive',
+                'shared': 'Shared with me',
+                'recent': 'Recent Files',
+                'starred': 'Starred Files',
+                'trash': 'Trash Bin'
+            };
+            
+            document.getElementById('breadcrumb').innerHTML = `<span>${titles[viewName]}</span>`;
+            renderItems();
+            toggleSidebar(false);
+        }
+
+        function renderItems() {
+            const container = document.getElementById('items-container');
+            const searchKeyword = document.getElementById('search-input').value.toLowerCase();
+            container.innerHTML = '';
+
+            let filtered = driveData.filter(item => {
+                if (searchKeyword) return item.name.toLowerCase().includes(searchKeyword);
+                if (currentView === 'trash') return item.trashed;
+                if (item.trashed) return false;
+
+                if (currentView === 'my-drive') return item.parentId === currentFolderId && !item.shared;
+                if (currentView === 'shared') return item.shared;
+                if (currentView === 'starred') return item.starred;
+                if (currentView === 'recent') return true;
+                return true;
+            });
+
+            if (currentView === 'recent') {
+                filtered = filtered.sort((a,b) => b.timestamp - a.timestamp).slice(0, 10);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p style="color: #70757a; grid-column: 1/-1; padding: 20px 0;">No items found in ${currentView}. Double-click or right-click to add files.</p>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `item-card ${selectedItemId === item.id ? 'selected' : ''}`;
+                card.draggable = true;
+                card.dataset.id = item.id;
+
+                const icon = item.type === 'folder' 
+                    ? '<i class="fa-solid fa-folder item-icon folder"></i>' 
+                    : '<i class="fa-solid fa-file-lines item-icon file"></i>';
+
+                card.innerHTML = `
+                    ${icon}
+                    <div class="item-details">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-meta">${item.type === 'folder' ? 'Folder' : (item.size || 'File')}</div>
+                    </div>
+                    <div class="item-actions">
+                        ${!item.trashed ? `<button class="action-btn ${item.starred ? 'star-active' : ''}" onclick="toggleStar(event, '${item.id}')"><i class="fa-solid fa-star"></i></button>` : ''}
+                        ${item.trashed 
+                            ? `<button class="action-btn" title="Restore" onclick="restoreItem(event, '${item.id}')"><i class="fa-solid fa-rotate-left"></i></button>`
+                            : `<button class="action-btn" title="Move to Trash" onclick="trashContainer(event, '${item.id}')"><i class="fa-solid fa-trash"></i></button>`
+                        }
+                    </div>
+                `;
+
+                card.onclick = (e) => {
+                    e.stopPropagation();
+                    selectedItemId = item.id;
+                    renderItems();
+                };
+
+                card.ondblclick = (e) => {
+                    e.stopPropagation();
+                    if (item.type === 'folder' && !item.trashed) navigateTo(item.id, item.name);
+                    else if(item.content) alert(`Content of ${item.name}:\n\n${item.content}`);
+                };
+
+                // Drag & Drop
+                card.ondragstart = (e) => {
+                    draggedItemId = item.id;
+                    e.dataTransfer.setData('text/plain', item.id);
+                };
+
+                if (item.type === 'folder') {
+                    card.ondragover = (e) => { e.preventDefault(); card.classList.add('drag-over'); };
+                    card.ondragleave = () => card.classList.remove('drag-over');
+                    card.ondrop = (e) => {
+                        e.preventDefault();
+                        card.classList.remove('drag-over');
+                        const targetId = e.dataTransfer.getData('text/plain');
+                        if (targetId && targetId !== item.id) moveItemToFolder(targetId, item.id);
+                    };
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        // --- DOUBLE CLICK & RIGHT CLICK CONTEXT MENU FEATURE ---
+        const contentArea = document.getElementById('content-area');
+        const contextMenu = document.getElementById('context-menu');
+
+        contentArea.oncontextmenu = (e) => {
+            e.preventDefault();
+            showContextMenu(e.clientX, e.clientY);
+        };
+
+        contentArea.ondblclick = (e) => {
+            if (e.target === contentArea || e.target.id === 'items-container') {
+                showContextMenu(e.clientX, e.clientY);
+            }
+        };
+
+        function showContextMenu(x, y) {
+            contextMenu.style.left = `${Math.min(x, window.innerWidth - 190)}px`;
+            contextMenu.style.top = `${Math.min(y, window.innerHeight - 140)}px`;
+            contextMenu.style.display = 'block';
+        }
+
+        document.onclick = () => {
+            contextMenu.style.display = 'none';
+            selectedItemId = null;
+        };
+
+        function triggerFileInput() {
+            contextMenu.style.display = 'none';
+            document.getElementById('file-input').click();
+        }
+
+        function createFolder() {
+            contextMenu.style.display = 'none';
+            const name = prompt("Folder name:", "New Folder");
+            if (name) {
+                driveData.push({ id: 'f_' + Date.now(), name, type: 'folder', parentId: currentFolderId, starred: false, trashed: false, shared: false, timestamp: Date.now() });
+                saveData(); renderItems();
+            }
+        }
+
+        function createTextFile() {
+            contextMenu.style.display = 'none';
+            const name = prompt("File name:", "Document.txt");
+            if (name) {
+                const content = prompt("Enter text content:", "");
+                driveData.push({ id: 'd_' + Date.now(), name, type: 'file', parentId: currentFolderId, size: '1 KB', starred: false, trashed: false, shared: false, timestamp: Date.now(), content: content || '' });
+                saveData(); renderItems();
+            }
+        }
+
+        // --- DRAG AND DROP DESKTOP FILES ---
+        const dropZone = document.getElementById('drop-zone');
+        const dropOverlay = document.getElementById('drop-overlay');
+
+        window.ondragover = (e) => { e.preventDefault(); dropOverlay.classList.add('active'); };
+        dropOverlay.ondragleave = () => dropOverlay.classList.remove('active');
+        window.ondrop = (e) => {
+            e.preventDefault();
+            dropOverlay.classList.remove('active');
+            if (e.dataTransfer.files.length > 0) handleExternalFiles(e.dataTransfer.files);
+        };
+
+        function handleExternalFiles(files) {
+            Array.from(files).forEach(file => {
+                driveData.push({
+                    id: 'file_' + Date.now() + Math.random().toString(36).substr(2,4),
+                    name: file.name,
+                    type: 'file',
+                    parentId: currentFolderId,
+                    size: (file.size / 1024).toFixed(1) + ' KB',
+                    starred: false, trashed: false, shared: false, timestamp: Date.now()
+                });
+            });
+            saveData(); renderItems();
+        }
+
+        function handleFileUpload(e) { handleExternalFiles(e.target.files); }
+
+        function moveItemToFolder(itemId, targetFolderId) {
+            const item = driveData.find(i => i.id === itemId);
+            if (item) { item.parentId = targetFolderId; saveData(); renderItems(); }
+        }
+
+        // --- COPY & PASTE (Ctrl+C / Ctrl+V) ---
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedItemId) {
+                clipboardItem = driveData.find(i => i.id === selectedItemId);
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboardItem) {
+                const newItem = JSON.parse(JSON.stringify(clipboardItem));
+                newItem.id = 'copy_' + Date.now();
+                newItem.name = 'Copy of ' + newItem.name;
+                newItem.parentId = currentFolderId;
+                newItem.timestamp = Date.now();
+                driveData.push(newItem);
+                saveData(); renderItems();
+            }
+        });
+
+        // Navigation
+        function navigateTo(folderId, folderName) {
+            currentFolderId = folderId;
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (folderId === 'root') {
+                breadcrumb.innerHTML = `<span onclick="navigateTo('root')">My Drive</span>`;
+            } else {
+                breadcrumb.innerHTML = `<span onclick="navigateTo('root')">My Drive</span> / <span>${folderName}</span>`;
+            }
+            renderItems();
+        }
+
+        function toggleStar(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.starred = !item.starred; saveData(); renderItems(); }
+        }
+
+        function trashContainer(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.trashed = true; saveData(); renderItems(); }
+        }
+
+        function restoreItem(e, id) {
+            e.stopPropagation();
+            const item = driveData.find(i => i.id === id);
+            if (item) { item.trashed = false; saveData(); renderItems(); }
+        }
+
+        function showNewMenu() { showContextMenu(window.innerWidth / 2 - 90, window.innerHeight / 2 - 70); }
+
+        function toggleLayout() {
+            const container = document.getElementById('items-container');
+            const icon = document.getElementById('layout-icon');
+            isGridView = !isGridView;
+            container.className = isGridView ? 'grid-view' : 'list-view';
+            icon.className = isGridView ? 'fa-solid fa-list-ul' : 'fa-solid fa-border-all';
+        }
+
+        // Cloud Sync Demo
+        function handleAuthClick() {
+            alert("UNITEC Drive Cloud Sync Demo Mode\n\nSimulating Google Drive synchronization...");
+            driveData.push({
+                id: 'gdrive_' + Date.now(),
+                name: 'Synced_Cloud_Document.gdoc',
+                type: 'file', parentId: 'root', size: '12 KB', starred: true, trashed: false, shared: true, timestamp: Date.now()
+            });
+            saveData(); renderItems();
+            document.getElementById('sync-status').innerText = 'Synced just now';
+        }
+
+        // Initialize
+        renderItems();
+    </script>
+</body>
+</html>
